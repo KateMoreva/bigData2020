@@ -1,19 +1,19 @@
 package sample
 
-import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.classification.GBTClassifier
+import org.apache.spark.ml.{Pipeline, PipelineModel}
+import org.apache.spark.ml.classification.{GBTClassifier, RandomForestClassifier}
 import org.apache.spark.ml.feature._
 import org.apache.spark.mllib.feature.Stemmer
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.DataTypes
 
-object HomeWork2 {
+object HomeWork1 {
   def main(args: Array[String]): Unit = {
     val spark = SparkSession
       .builder()
       .appName("Task2")
-      .config("spark.master", "local")
+      .master("local[*]")
       .getOrCreate()
 
     spark.sparkContext.setLogLevel("OFF")
@@ -61,7 +61,7 @@ object HomeWork2 {
 
     val hashingTF = new HashingTF()
       .setNumFeatures(10000)
-      .setInputCol(stemmer.getOutputCol)
+      .setInputCol(stwr.getOutputCol)
       .setOutputCol("rawFeatures")
 
     val idf = new IDF()
@@ -78,14 +78,23 @@ object HomeWork2 {
       .setPredictionCol("target")
       .setMaxIter(20)
 
+    val rfc = new RandomForestClassifier()
+      .setLabelCol("indexedLabel")
+      .setFeaturesCol("features")
+      .setPredictionCol("target")
+      .setNumTrees(15)
+
     val pipe = new Pipeline()
-      .setStages(Array(token, stwr, stemmer, hashingTF, idf, labelIndexer, rideg))
-    var result = pipe.fit(trainSet).transform(testSet).select(col("id"), col("target").cast(DataTypes.IntegerType))
+      .setStages(Array(token, stwr, hashingTF, idf, labelIndexer, rideg))
+    val model = pipe.fit(trainSet)
+
+    var result = model.transform(testSet).select(col("id"), col("target").cast(DataTypes.IntegerType))
 
     result = result.join(sampleSet, sampleSet.col("id").equalTo(result.col("id")), "right")
       .select(sampleSet.col("id"), when(result.col("id").isNull, lit(0)).otherwise(col("target")).as("target"))
 
-    result.write.option("header", "true").option("inferSchema", "true").csv("src/main/resources/sample_submission11.csv")
-
+    result.write.option("header", "true").option("inferSchema", "true").csv("src/main/resources/sample_submission32.csv")
+    model.write.overwrite
+      .save(sys.env("HOME") + "/Документы/Технополис/ML/bigData2020/hw2/moreva/task2/model/")
      }
 }
